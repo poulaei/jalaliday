@@ -1,143 +1,129 @@
 /* eslint-disable */
-/*
- JavaScript functions for the Fourmilab Calendar Converter
- by John Walker  --  September, MIM
- http://www.fourmilab.ch/documents/calendar/
- This program is in the public domain.
- */
-
-/*  MOD  --  Modulus function which works for non-integers.  */
-const $floor = Math.floor
+// https://github.com/jalaali/moment-jalaali
+// https://github.com/alibaba-aero/jalaliday
+// https://github.com/BaseMax/gregorian_to_jalali/blob/main/gregorian_to_jalali.js
+function g2d(gy, gm, gd) {
+  var d = div((gy + div(gm - 8, 6) + 100100) * 1461, 4)
+      + div(153 * mod(gm + 9, 12) + 2, 5)
+      + gd - 34840408
+  d = d - div(div(gy + 100100 + div(gm - 8, 6), 100) * 3, 4) + 752
+  return d
+}
+var breaks =  [ -61, 9, 38, 199, 426, 686, 756, 818, 1111, 1181, 1210
+  , 1635, 2060, 2097, 2192, 2262, 2324, 2394, 2456, 3178
+  ]
 function mod(a, b) {
-  return a - (b * $floor(a / b))
+return a - ~~(a / b) * b;
+}
+function div(a, b) {
+return ~~(a / b);
+}
+function jalCal(jy, withoutLeap) {
+var bl = breaks.length,
+  gy = jy + 621,
+  leapJ = -14,
+  jp = breaks[0],
+  jm,
+  jump,
+  leap,
+  leapG,
+  march,
+  n,
+  i;
+
+if (jy < jp || jy >= breaks[bl - 1])
+  throw new Error("Invalid Jalaali year " + jy);
+
+// Find the limiting years for the Jalaali year jy.
+for (i = 1; i < bl; i += 1) {
+  jm = breaks[i];
+  jump = jm - jp;
+  if (jy < jm) break;
+  leapJ = leapJ + div(jump, 33) * 8 + div(mod(jump, 33), 4);
+  jp = jm;
+}
+n = jy - jp;
+
+// Find the number of leap years from AD 621 to the beginning
+// of the current Jalaali year in the Persian calendar.
+leapJ = leapJ + div(n, 33) * 8 + div(mod(n, 33) + 3, 4);
+if (mod(jump, 33) === 4 && jump - n === 4) leapJ += 1;
+
+// And the same in the Gregorian calendar (until the year gy).
+leapG = div(gy, 4) - div((div(gy, 100) + 1) * 3, 4) - 150;
+
+// Determine the Gregorian date of Farvardin the 1st.
+march = 20 + leapJ - leapG;
+
+// return with gy and march when we don't need leap
+if (withoutLeap) return { gy: gy, march: march };
+
+// Find how many years have passed since the last leap year.
+if (jump - n < 6) n = n - jump + div(jump + 4, 33) * 33;
+leap = mod(mod(n + 1, 33) - 1, 4);
+if (leap === -1) {
+  leap = 4;
 }
 
-//  LEAP_GREGORIAN  --  Is a given year in the Gregorian calendar a leap year ?
-
-function lg(year) {
-  return ((year % 4) == 0) &&
-    (!(((year % 100) == 0) && ((year % 400) != 0)))
+return { leap: leap, gy: gy, march: march };
+}
+function j2d(jy, jm, jd) {
+var r = jalCal(jy, true);
+return g2d(r.gy, 3, r.march) + (jm - 1) * 31 - div(jm, 7) * (jm - 7) + jd - 1;
+}
+function d2g(jdn) {
+var j, i, gd, gm, gy;
+j = 4 * jdn + 139361631;
+j = j + div(div(4 * jdn + 183187720, 146097) * 3, 4) * 4 - 3908;
+i = div(mod(j, 1461), 4) * 5 + 308;
+gd = div(mod(i, 153), 5) + 1;
+gm = mod(div(i, 153), 12) + 1;
+gy = div(j, 1461) - 100100 + div(8 - gm, 6);
+return [gy, gm, gd]
+}
+function toGregorian(jy, jm, jd) {
+return d2g(j2d(jy, jm, jd));
 }
 
-//  GREGORIAN_TO_JD  --  Determine Julian day number from Gregorian calendar date
+const toJalaali = (year, month, day) => {
 
-// GREGORIAN_EPOCH
-const GE = 1721425.5
+	let result = [],
+        array = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334],
+        days;
 
-function g2j(year, month, day) {
-  return (GE - 1) +
-    (365 * (year - 1)) +
-    $floor((year - 1) / 4) +
-    (-$floor((year - 1) / 100)) +
-    $floor((year - 1) / 400) +
-    $floor((((367 * month) - 362) / 12) +
-      ((month <= 2) ? 0 :
-        (lg(year) ? -1 : -2)
-      ) +
-    day)
+	if(year <= 1600) {
+		year -= 621;
+		result["year"] = 0;
+	} else {
+		year -= 1600;
+		result["year"] = 979;
+	}
+
+	const temp = (year > 2) ? (year + 1) : year;
+	days = (parseInt((temp + 3) / 4)) + (365 * year) - (parseInt((temp + 99) / 100)) - 80 + array[month - 1] + (parseInt((temp + 399) / 400)) + day;
+	result["year"] += 33 * (parseInt(days / 12053));
+	days %= 12053;
+	result["year"] += 4 * (parseInt(days / 1461));
+	days %= 1461;
+
+	if(days > 365){
+		result["year"] += parseInt((days - 1) / 365);
+		days = (days-1) % 365;
+	}
+
+	result["month"] = (days < 186)
+							? 1 + parseInt(days / 31)
+							: 7 + parseInt((days - 186) / 30);
+
+	result["day"] = 1 + ((days < 186)
+							? (days % 31)
+							: ((days - 186) % 30));
+
+	return [result["year"], result["month"], result["day"]];
 }
 
-//  JD_TO_GREGORIAN  --  Calculate Gregorian calendar date from Julian day
-
-function j2g(jd) {
-  let wjd,
-    depoch,
-    quadricent,
-    dqc,
-    cent,
-    dcent,
-    quad,
-    dquad,
-    yindex,
-    year,
-    yearday,
-    leapadj
-
-  wjd = $floor(jd - 0.5) + 0.5
-  depoch = wjd - GE
-  quadricent = $floor(depoch / 146097)
-  dqc = mod(depoch, 146097)
-  cent = $floor(dqc / 36524)
-  dcent = mod(dqc, 36524)
-  quad = $floor(dcent / 1461)
-  dquad = mod(dcent, 1461)
-  yindex = $floor(dquad / 365)
-  year = (quadricent * 400) + (cent * 100) + (quad * 4) + yindex
-  if (!((cent == 4) || (yindex == 4))) {
-    year++
-  }
-  yearday = wjd - g2j(year, 1, 1)
-  leapadj = ((wjd < g2j(year, 3, 1)) ? 0
-    :
-    (lg(year) ? 1 : 2)
-  )
-  let month = $floor((((yearday + leapadj) * 12) + 373) / 367),
-    day = (wjd - g2j(year, month, 1)) + 1
-
-  return [year, month, day]
-}
-
-// PERSIAN_EPOCH
-const PE = 1948320.5
-
-//  PERSIAN_TO_JD  --  Determine Julian day from Persian date
-
-function p2j(year, month, day) {
-  let epbase, epyear
-
-  epbase = year - ((year >= 0) ? 474 : 473)
-  epyear = 474 + mod(epbase, 2820)
-
-  return day +
-		((month <= 7) ?
-		  ((month - 1) * 31) :
-		  (((month - 1) * 30) + 6)
-		) +
-		$floor(((epyear * 682) - 110) / 2816) +
-		(epyear - 1) * 365 +
-		$floor(epbase / 2820) * 1029983 +
-		(PE - 1)
-}
-
-//  JD_TO_PERSIAN  --  Calculate Persian date from Julian day
-
-function j2p(jd) {
-  let year,
-    month,
-    day,
-    depoch,
-    cycle,
-    cyear,
-    ycycle,
-    aux1,
-    aux2,
-    yday
-
-
-  jd = $floor(jd) + 0.5
-
-  depoch = jd - p2j(475, 1, 1)
-  cycle = $floor(depoch / 1029983)
-  cyear = mod(depoch, 1029983)
-  if (cyear == 1029982) {
-    ycycle = 2820
-  } else {
-    aux1 = $floor(cyear / 366)
-    aux2 = mod(cyear, 366)
-    ycycle = $floor(((2134 * aux1) + (2816 * aux2) + 2815) / 1028522) +
-			aux1 + 1
-  }
-  year = ycycle + (2820 * cycle) + 474
-  if (year <= 0) {
-    year--
-  }
-  yday = (jd - p2j(year, 1, 1)) + 1
-  month = (yday <= 186) ? Math.ceil(yday / 31) : Math.ceil((yday - 6) / 30)
-  day = (jd - p2j(year, month, 1)) + 1
-  return [year, month, day]
-}
 
 export default {
-  J: (y, m, d) => j2p(g2j(y, m, d)),
-  G: (y, m, d) => j2g(p2j(y, m, d))
+  J: (y, m, d) => toJalaali(y, m, d),
+  G: (y, m, d) => toGregorian(y, m, d)
 }
